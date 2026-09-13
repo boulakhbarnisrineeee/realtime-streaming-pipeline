@@ -51,6 +51,19 @@ services:
     networks:
       - pipeline-net
 
+  consumer:
+    build: ./consumer
+    container_name: consumer
+    depends_on:
+      - kafka
+      - cassandra
+    environment:
+      KAFKA_BROKER: kafka:29092
+      CASSANDRA_HOST: cassandra
+      PYTHONUNBUFFERED: 1
+    networks:
+      - pipeline-net
+
 networks:
   pipeline-net:
     driver: bridge
