@@ -80,6 +80,23 @@ services:
     networks:
       - pipeline-net
 
+  etl:
+    build: ./etl
+    container_name: etl
+    restart: on-failure
+    depends_on:
+      - cassandra
+      - postgres
+    environment:
+      CASSANDRA_HOST: cassandra
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: crypto_analytics
+      POSTGRES_USER: etl_user
+      POSTGRES_PASSWORD: etl_password
+      PYTHONUNBUFFERED: 1
+    networks:
+      - pipeline-net
+
 networks:
   pipeline-net:
     driver: bridge
