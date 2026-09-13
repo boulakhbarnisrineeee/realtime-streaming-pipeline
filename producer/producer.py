@@ -1,10 +1,11 @@
+import os
 import json
 import time
 import requests
 from kafka import KafkaProducer
 
 # Configuration
-KAFKA_BROKER = "localhost:9092"
+KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "localhost:9092")
 TOPIC = "crypto_transactions"
 SYMBOL = "BTCUSDT"
 POLL_INTERVAL_SECONDS = 5
@@ -25,7 +26,7 @@ def fetch_trades(symbol=SYMBOL, limit=5):
     return response.json()
 
 def run():
-    print(f"Producer démarré — polling {SYMBOL} toutes les {POLL_INTERVAL_SECONDS}s")
+    print(f"Producer démarré — polling {SYMBOL} toutes les {POLL_INTERVAL_SECONDS}s (broker: {KAFKA_BROKER})")
     last_id = -1  # aucune transaction publiée pour l'instant
 
     while True:

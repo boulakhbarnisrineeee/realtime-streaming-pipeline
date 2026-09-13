@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -22,8 +20,6 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Deux listeners : un pour la communication interne (entre conteneurs),
-      # un pour l'accès depuis l'extérieur (ta machine hôte)
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
@@ -41,6 +37,17 @@ services:
       CASSANDRA_CLUSTER_NAME: streaming-cluster
     volumes:
       - cassandra-data:/var/lib/cassandra
+    networks:
+      - pipeline-net
+
+  producer:
+    build: ./producer
+    container_name: producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:29092
+      PYTHONUNBUFFERED: 1
     networks:
       - pipeline-net
 
