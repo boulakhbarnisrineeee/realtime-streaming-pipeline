@@ -1,0 +1,2 @@
+scylla-driver
+psycopg2-binary
