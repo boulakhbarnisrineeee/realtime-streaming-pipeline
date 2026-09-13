@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from collections import defaultdict
@@ -16,6 +17,7 @@ POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "etl_password")
 SYMBOL = "BTCUSDT"
 KEYSPACE = "crypto_streaming"
 CANDLE_INTERVAL_MINUTES = 5
+SCHEDULE_INTERVAL_SECONDS = 5 * 60  # 5 minutes
 
 class LocalAddressTranslator(AddressTranslator):
     def translate(self, addr):
@@ -114,4 +116,10 @@ def run():
     pg_conn.close()
 
 if __name__ == "__main__":
-    run()
+    while True:
+        try:
+            run()
+        except Exception as e:
+            print(f"Erreur pendant l'exécution ETL: {e}")
+        print(f"Prochaine exécution dans {SCHEDULE_INTERVAL_SECONDS // 60} minutes...")
+        time.sleep(SCHEDULE_INTERVAL_SECONDS)

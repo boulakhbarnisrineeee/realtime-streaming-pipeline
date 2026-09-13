@@ -43,6 +43,7 @@ services:
   producer:
     build: ./producer
     container_name: producer
+    restart: on-failure
     depends_on:
       - kafka
     environment:
@@ -54,6 +55,7 @@ services:
   consumer:
     build: ./consumer
     container_name: consumer
+    restart: on-failure
     depends_on:
       - kafka
       - cassandra
