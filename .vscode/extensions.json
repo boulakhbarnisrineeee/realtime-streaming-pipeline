@@ -1,0 +1,12 @@
+{
+    "python.formatting.provider": "black",
+    "editor.formatOnSave": true,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true
+    },
+    "[python]": {
+        "editor.tabSize": 4
+    },
+    "yaml.format.enable": true
+}
