@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+env/
+
+# Environnement
+.env
+
+# Docker / données persistantes
+cassandra-data/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
