@@ -6,6 +6,9 @@ from kafka import KafkaConsumer
 from cassandra.cluster import Cluster
 from cassandra.io.asyncioreactor import AsyncioConnection
 from cassandra.policies import AddressTranslator
+from common.logger import get_logger
+
+logger = get_logger("consumer")
 
 KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "localhost:9092")
 CASSANDRA_HOST = os.environ.get("CASSANDRA_HOST", "localhost")
@@ -25,11 +28,11 @@ class LocalAddressTranslator(AddressTranslator):
     def translate(self, addr):
         return "127.0.0.1"
 
-print("Tentative de connexion à Cassandra...")
+logger.info("Tentative de connexion à Cassandra...")
 translator = LocalAddressTranslator() if CASSANDRA_HOST == "localhost" else None
 cluster = Cluster([CASSANDRA_HOST], connection_class=AsyncioConnection, address_translator=translator)
 session = cluster.connect(KEYSPACE)
-print("Connecté à Cassandra avec succès.")
+logger.info("Connecté à Cassandra avec succès.")
 
 insert_by_symbol = session.prepare("""
     INSERT INTO transactions_by_symbol
@@ -67,12 +70,12 @@ def save_to_cassandra(t: dict):
     ))
 
 def run():
-    print(f"Consumer démarré — écoute du topic '{TOPIC}' (broker: {KAFKA_BROKER})")
+    logger.info(f"Consumer démarré — écoute du topic '{TOPIC}' (broker: {KAFKA_BROKER})")
     for message in consumer:
         raw_transaction = message.value
         transaction = transform(raw_transaction)
         save_to_cassandra(transaction)
-        print(f"Sauvegardé: {transaction['trade_id']} - {transaction['price']} @ {transaction['trade_time']}")
+        logger.info(f"Sauvegardé: {transaction['trade_id']} - {transaction['price']} @ {transaction['trade_time']}")
 
 if __name__ == "__main__":
     run()

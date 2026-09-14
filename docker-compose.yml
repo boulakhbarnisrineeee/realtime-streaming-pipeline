@@ -55,7 +55,9 @@ services:
       - pipeline-net
 
   consumer:
-    build: ./consumer
+    build:
+      context: .
+      dockerfile: consumer/Dockerfile
     container_name: consumer
     restart: on-failure
     depends_on:
