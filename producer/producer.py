@@ -3,6 +3,8 @@ import json
 import time
 import requests
 from kafka import KafkaProducer
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+import logging
 from common.logger import get_logger
 
 logger = get_logger("producer")
@@ -18,9 +20,14 @@ producer = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
 )
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=1, max=30),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
 def fetch_trades(symbol=SYMBOL, limit=5):
     url = "https://api.binance.com/api/v3/trades"
-    response = requests.get(url, params={"symbol": symbol, "limit": limit})
+    response = requests.get(url, params={"symbol": symbol, "limit": limit}, timeout=10)
     response.raise_for_status()
     return response.json()
 
@@ -29,7 +36,13 @@ def run():
     last_id = -1
 
     while True:
-        trades = fetch_trades()
+        try:
+            trades = fetch_trades()
+        except Exception as e:
+            logger.error(f"Échec définitif de l'appel API après plusieurs tentatives: {e}")
+            time.sleep(POLL_INTERVAL_SECONDS)
+            continue
+
         new_trades = [t for t in trades if t["id"] > last_id]
 
         if not new_trades:
