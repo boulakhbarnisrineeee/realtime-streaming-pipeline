@@ -3,6 +3,9 @@ import json
 import time
 import requests
 from kafka import KafkaProducer
+from common.logger import get_logger
+
+logger = get_logger("producer")
 
 # Configuration
 KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "localhost:9092")
@@ -16,28 +19,21 @@ producer = KafkaProducer(
 )
 
 def fetch_trades(symbol=SYMBOL, limit=5):
-    # Note : /api/v3/trades ne supporte PAS fromId (contrairement à
-    # /api/v3/historicalTrades ou /api/v3/aggTrades). On récupère donc
-    # toujours les N dernières transactions, et on filtre nous-mêmes
-    # les doublons ci-dessous.
     url = "https://api.binance.com/api/v3/trades"
     response = requests.get(url, params={"symbol": symbol, "limit": limit})
     response.raise_for_status()
     return response.json()
 
 def run():
-    print(f"Producer démarré — polling {SYMBOL} toutes les {POLL_INTERVAL_SECONDS}s (broker: {KAFKA_BROKER})")
-    last_id = -1  # aucune transaction publiée pour l'instant
+    logger.info(f"Producer démarré — polling {SYMBOL} toutes les {POLL_INTERVAL_SECONDS}s (broker: {KAFKA_BROKER})")
+    last_id = -1
 
     while True:
         trades = fetch_trades()
-
-        # Les trade_id Binance sont strictement croissants pour un symbole
-        # donné : on ne garde que ceux jamais publiés.
         new_trades = [t for t in trades if t["id"] > last_id]
 
         if not new_trades:
-            print("Aucune nouvelle transaction.")
+            logger.info("Aucune nouvelle transaction.")
         else:
             for trade in new_trades:
                 message = {
@@ -50,7 +46,7 @@ def run():
                     "is_buyer_maker": trade["isBuyerMaker"],
                 }
                 producer.send(TOPIC, value=message)
-                print(f"Publié: {message['trade_id']} - {message['price']}")
+                logger.info(f"Publié: {message['trade_id']} - {message['price']}")
 
             producer.flush()
             last_id = max(t["id"] for t in new_trades)

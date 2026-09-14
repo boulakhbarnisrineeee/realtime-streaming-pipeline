@@ -2,9 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY producer/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY producer.py .
+COPY common/ ./common/
+COPY producer/producer.py .
 
 CMD ["python", "producer.py"]

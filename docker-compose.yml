@@ -41,7 +41,9 @@ services:
       - pipeline-net
 
   producer:
-    build: ./producer
+    build:
+      context: .
+      dockerfile: producer/Dockerfile
     container_name: producer
     restart: on-failure
     depends_on:
