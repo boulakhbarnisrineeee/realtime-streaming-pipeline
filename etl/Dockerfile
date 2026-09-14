@@ -2,9 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY etl/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY etl.py .
+COPY common/ ./common/
+COPY etl/etl.py .
 
 CMD ["python", "etl.py"]

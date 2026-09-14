@@ -8,6 +8,9 @@ import psycopg2
 from cassandra.cluster import Cluster
 from cassandra.io.asyncioreactor import AsyncioConnection
 from cassandra.policies import AddressTranslator
+from common.logger import get_logger
+
+logger = get_logger("etl")
 
 CASSANDRA_HOST = os.environ.get("CASSANDRA_HOST", "localhost")
 POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "localhost")
@@ -17,7 +20,7 @@ POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "etl_password")
 SYMBOL = "BTCUSDT"
 KEYSPACE = "crypto_streaming"
 CANDLE_INTERVAL_MINUTES = 5
-SCHEDULE_INTERVAL_SECONDS = 5 * 60  # 5 minutes
+SCHEDULE_INTERVAL_SECONDS = 5 * 60
 
 class LocalAddressTranslator(AddressTranslator):
     def translate(self, addr):
@@ -35,7 +38,6 @@ def get_postgres_connection():
     )
 
 def floor_to_interval(dt: datetime, minutes: int) -> datetime:
-    """Arrondit un datetime au début de son intervalle de N minutes."""
     discard = timedelta(
         minutes=dt.minute % minutes,
         seconds=dt.second,
@@ -44,7 +46,6 @@ def floor_to_interval(dt: datetime, minutes: int) -> datetime:
     return dt - discard
 
 def extract(session, symbol=SYMBOL, lookback_minutes=60):
-    """Récupère les transactions récentes de Cassandra pour un symbole donné."""
     since = datetime.now(timezone.utc) - timedelta(minutes=lookback_minutes)
     query = """
         SELECT trade_time, price, quantity
@@ -55,7 +56,6 @@ def extract(session, symbol=SYMBOL, lookback_minutes=60):
     return list(rows)
 
 def transform(rows, symbol=SYMBOL):
-    """Regroupe les transactions par intervalle de 5 min et calcule les OHLC."""
     buckets = defaultdict(list)
     for row in rows:
         candle_start = floor_to_interval(row.trade_time, CANDLE_INTERVAL_MINUTES)
@@ -78,7 +78,6 @@ def transform(rows, symbol=SYMBOL):
     return candles
 
 def load(pg_conn, candles):
-    """Insère (ou met à jour) les bougies dans PostgreSQL."""
     upsert_query = """
         INSERT INTO ohlc_candles
         (symbol, candle_start, open_price, high_price, low_price, close_price, volume, trade_count)
@@ -100,18 +99,18 @@ def load(pg_conn, candles):
     pg_conn.commit()
 
 def run():
-    print("ETL démarré — extraction depuis Cassandra...")
+    logger.info("ETL démarré — extraction depuis Cassandra...")
     session = get_cassandra_session()
     pg_conn = get_postgres_connection()
 
     rows = extract(session)
-    print(f"{len(rows)} transactions extraites.")
+    logger.info(f"{len(rows)} transactions extraites.")
 
     candles = transform(rows)
-    print(f"{len(candles)} bougies OHLC calculées.")
+    logger.info(f"{len(candles)} bougies OHLC calculées.")
 
     load(pg_conn, candles)
-    print("Bougies chargées dans PostgreSQL avec succès.")
+    logger.info("Bougies chargées dans PostgreSQL avec succès.")
 
     pg_conn.close()
 
@@ -120,6 +119,6 @@ if __name__ == "__main__":
         try:
             run()
         except Exception as e:
-            print(f"Erreur pendant l'exécution ETL: {e}")
-        print(f"Prochaine exécution dans {SCHEDULE_INTERVAL_SECONDS // 60} minutes...")
+            logger.error(f"Erreur pendant l'exécution ETL: {e}")
+        logger.info(f"Prochaine exécution dans {SCHEDULE_INTERVAL_SECONDS // 60} minutes...")
         time.sleep(SCHEDULE_INTERVAL_SECONDS)

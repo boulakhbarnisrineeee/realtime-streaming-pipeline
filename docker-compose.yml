@@ -85,7 +85,9 @@ services:
       - pipeline-net
 
   etl:
-    build: ./etl
+    build:
+      context: .
+      dockerfile: etl/Dockerfile
     container_name: etl
     restart: on-failure
     depends_on:
