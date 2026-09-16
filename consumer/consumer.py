@@ -1,11 +1,13 @@
 import os
 import json
+import logging
 from decimal import Decimal
 from datetime import datetime, timezone
 from kafka import KafkaConsumer
 from cassandra.cluster import Cluster
 from cassandra.io.asyncioreactor import AsyncioConnection
 from cassandra.policies import AddressTranslator
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 from common.logger import get_logger
 
 logger = get_logger("consumer")
@@ -28,10 +30,18 @@ class LocalAddressTranslator(AddressTranslator):
     def translate(self, addr):
         return "127.0.0.1"
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
+def connect_to_cassandra():
+    translator = LocalAddressTranslator() if CASSANDRA_HOST == "localhost" else None
+    cluster = Cluster([CASSANDRA_HOST], connection_class=AsyncioConnection, address_translator=translator)
+    return cluster.connect(KEYSPACE)
+
 logger.info("Tentative de connexion à Cassandra...")
-translator = LocalAddressTranslator() if CASSANDRA_HOST == "localhost" else None
-cluster = Cluster([CASSANDRA_HOST], connection_class=AsyncioConnection, address_translator=translator)
-session = cluster.connect(KEYSPACE)
+session = connect_to_cassandra()
 logger.info("Connecté à Cassandra avec succès.")
 
 insert_by_symbol = session.prepare("""

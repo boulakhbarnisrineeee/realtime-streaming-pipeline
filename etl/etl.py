@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from collections import defaultdict
@@ -8,6 +9,7 @@ import psycopg2
 from cassandra.cluster import Cluster
 from cassandra.io.asyncioreactor import AsyncioConnection
 from cassandra.policies import AddressTranslator
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 from common.logger import get_logger
 
 logger = get_logger("etl")
@@ -26,11 +28,21 @@ class LocalAddressTranslator(AddressTranslator):
     def translate(self, addr):
         return "127.0.0.1"
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
 def get_cassandra_session():
     translator = LocalAddressTranslator() if CASSANDRA_HOST == "localhost" else None
     cluster = Cluster([CASSANDRA_HOST], connection_class=AsyncioConnection, address_translator=translator)
     return cluster.connect(KEYSPACE)
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
 def get_postgres_connection():
     return psycopg2.connect(
         host=POSTGRES_HOST, dbname=POSTGRES_DB,
