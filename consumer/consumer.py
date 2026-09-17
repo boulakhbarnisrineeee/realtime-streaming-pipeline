@@ -18,14 +18,6 @@ TOPIC = "crypto_transactions"
 GROUP_ID = "crypto_consumer_group"
 KEYSPACE = "crypto_streaming"
 
-consumer = KafkaConsumer(
-    TOPIC,
-    bootstrap_servers=[KAFKA_BROKER],
-    group_id=GROUP_ID,
-    auto_offset_reset="earliest",
-    value_deserializer=lambda v: json.loads(v.decode("utf-8"))
-)
-
 class LocalAddressTranslator(AddressTranslator):
     def translate(self, addr):
         return "127.0.0.1"
@@ -40,22 +32,6 @@ def connect_to_cassandra():
     cluster = Cluster([CASSANDRA_HOST], connection_class=AsyncioConnection, address_translator=translator)
     return cluster.connect(KEYSPACE)
 
-logger.info("Tentative de connexion à Cassandra...")
-session = connect_to_cassandra()
-logger.info("Connecté à Cassandra avec succès.")
-
-insert_by_symbol = session.prepare("""
-    INSERT INTO transactions_by_symbol
-    (symbol, trade_time, trade_id, price, quantity, quote_qty, is_buyer_maker)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-""")
-
-insert_by_id = session.prepare("""
-    INSERT INTO transactions_by_id
-    (trade_id, symbol, trade_time, price, quantity, quote_qty, is_buyer_maker)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-""")
-
 def transform(raw_transaction: dict) -> dict:
     return {
         "trade_id": raw_transaction["trade_id"],
@@ -69,7 +45,7 @@ def transform(raw_transaction: dict) -> dict:
         "is_buyer_maker": raw_transaction["is_buyer_maker"],
     }
 
-def save_to_cassandra(t: dict):
+def save_to_cassandra(session, insert_by_symbol, insert_by_id, t: dict):
     session.execute(insert_by_symbol, (
         t["symbol"], t["trade_time"], t["trade_id"],
         t["price"], t["quantity"], t["quote_qty"], t["is_buyer_maker"]
@@ -79,13 +55,38 @@ def save_to_cassandra(t: dict):
         t["price"], t["quantity"], t["quote_qty"], t["is_buyer_maker"]
     ))
 
-def run():
+def main():
+    consumer = KafkaConsumer(
+        TOPIC,
+        bootstrap_servers=[KAFKA_BROKER],
+        group_id=GROUP_ID,
+        auto_offset_reset="earliest",
+        value_deserializer=lambda v: json.loads(v.decode("utf-8"))
+    )
+
+    logger.info("Tentative de connexion à Cassandra...")
+    session = connect_to_cassandra()
+    logger.info("Connecté à Cassandra avec succès.")
+
+    insert_by_symbol = session.prepare("""
+        INSERT INTO transactions_by_symbol
+        (symbol, trade_time, trade_id, price, quantity, quote_qty, is_buyer_maker)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """)
+
+    insert_by_id = session.prepare("""
+        INSERT INTO transactions_by_id
+        (trade_id, symbol, trade_time, price, quantity, quote_qty, is_buyer_maker)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """)
+
     logger.info(f"Consumer démarré — écoute du topic '{TOPIC}' (broker: {KAFKA_BROKER})")
     for message in consumer:
         raw_transaction = message.value
         transaction = transform(raw_transaction)
-        save_to_cassandra(transaction)
+        save_to_cassandra(session, insert_by_symbol, insert_by_id, transaction)
         logger.info(f"Sauvegardé: {transaction['trade_id']} - {transaction['price']} @ {transaction['trade_time']}")
 
 if __name__ == "__main__":
-    run()
+    main()
+    
